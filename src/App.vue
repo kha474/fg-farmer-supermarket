@@ -10,8 +10,7 @@ const STORAGE = {
   expenses: 'fg_expenses',
   business: 'fg_business',
   phone: 'fg_phone',
-  lowStock: 'fg_low_stock',
-  paystackKey: 'fg_paystack_public_key'
+  lowStock: 'fg_low_stock'
 }
 
 const load = (key, fallback) => {
@@ -62,7 +61,9 @@ const expenses = ref(load(STORAGE.expenses, []))
 const businessName = ref(localStorage.getItem(STORAGE.business) || 'FG Farmer Supermarket')
 const businessPhone = ref(localStorage.getItem(STORAGE.phone) || '')
 const lowStockLimit = ref(Number(localStorage.getItem(STORAGE.lowStock) || 5))
-const paystackPublicKey = ref(localStorage.getItem(STORAGE.paystackKey) || '')
+
+// ✅ NEW: Load Paystack key from Vite environment variables
+const paystackPublicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || ''
 
 watch(products, v => localStorage.setItem(STORAGE.products, JSON.stringify(v)), { deep: true })
 watch(sales, v => localStorage.setItem(STORAGE.sales, JSON.stringify(v)), { deep: true })
@@ -73,7 +74,6 @@ watch(expenses, v => localStorage.setItem(STORAGE.expenses, JSON.stringify(v)), 
 watch(businessName, v => localStorage.setItem(STORAGE.business, v))
 watch(businessPhone, v => localStorage.setItem(STORAGE.phone, v))
 watch(lowStockLimit, v => localStorage.setItem(STORAGE.lowStock, String(v)))
-watch(paystackPublicKey, v => localStorage.setItem(STORAGE.paystackKey, v))
 
 const activePage = ref('pos')
 const search = ref('')
@@ -266,9 +266,9 @@ async function payWithPaystack() {
   if (isProcessingPayment.value) return
   if (!cart.value.length) return notify('Your cart is empty.')
 
-  if (!paystackPublicKey.value.trim() || !paystackPublicKey.value.startsWith('pk_')) {
-    notify('Add a valid Paystack public key in Settings first.')
-    activePage.value = 'settings'
+  // ✅ NEW: Check if the environment variable is present
+  if (!paystackPublicKey || !paystackPublicKey.startsWith('pk_')) {
+    notify('Paystack public key is missing. Please add VITE_PAYSTACK_PUBLIC_KEY to Vercel and redeploy.')
     return
   }
 
@@ -503,7 +503,6 @@ function resetData() {
   businessName.value = 'FG Farmer Supermarket'
   businessPhone.value = ''
   lowStockLimit.value = 5
-  paystackPublicKey.value = ''
   notify('System data has been reset.')
 }
 
@@ -775,12 +774,19 @@ function formatDate(date) {
           <label>Business Phone Number<input v-model="businessPhone" placeholder="07XXXXXXXX" /></label>
           <label>Low Stock Warning Level<input v-model.number="lowStockLimit" type="number" min="0" /></label>
         </div>
+        
+        <!-- ✅ NEW: Replaced input with a status message -->
         <div class="form-card settings-card">
           <h3>Paystack Payment Settings</h3>
-          <p class="settings-description">Enter your Paystack public key. Use your test public key while testing.</p>
-          <label>Paystack Public Key<input v-model="paystackPublicKey" type="text" placeholder="pk_test_..." /></label>
-          <p class="settings-description">Your secret key belongs only in Vercel environment variables. Never paste it here or into frontend code.</p>
+          <div v-if="paystackPublicKey" style="background: #dcfce7; color: #166534; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 10px;">
+            ✅ Paystack Public Key is successfully loaded from environment variables.
+          </div>
+          <div v-else style="background: #fee2e2; color: #b91c1c; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 10px;">
+            ⚠️ Paystack Public Key is missing! Please add <strong>VITE_PAYSTACK_PUBLIC_KEY</strong> to your Vercel settings and redeploy.
+          </div>
+          <p class="settings-description">Your secret key belongs only in Vercel environment variables. Never paste it into frontend code.</p>
         </div>
+
         <div class="form-card settings-card">
           <h3>System Information</h3>
           <p>System: FG Farmer Supermarket POS</p><p>Currency: Kenyan Shillings (KSh)</p><p>Products: {{ products.length }}</p><p>Sales records: {{ sales.length }}</p><p>Customers: {{ customers.length }}</p>
